@@ -331,6 +331,7 @@ export async function fetchIncidents(opts?: {
     const mappedIncidents = (data || []).map((incident: any, idx: number) => ({
       id: `incident_${idx}`,
       title: incident.title,
+      description: incident.notes || incident.causal_mechanism || incident.title || '',
       event_type: incident.event_type,
       incident_type: incident.event_type,
       severity: incident.severity,

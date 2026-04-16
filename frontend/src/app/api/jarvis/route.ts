@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
-async function parseModelOutputToJSON(text: string) {
+const DEFAULT_JARVIS_BACKEND_URL = 'https://cerebro-mj9g.onrender.com/';
+const DEFAULT_BACKEND_PATHS = ['/api/ask', '/api/ask/debug', '/', '/chat', '/api/chat', '/jarvis', '/api/jarvis'];
+
+function parseModelOutputToJSON(text: string) {
   // Try direct JSON parse
   try {
     return JSON.parse(text);
@@ -18,6 +21,143 @@ async function parseModelOutputToJSON(text: string) {
 
   // Fallback: return the raw text as assistant message
   return { text };
+}
+
+function normalizeResponsePayload(payload: unknown): { text: string; actions: unknown[] } | null {
+  if (payload == null) return null;
+
+  if (typeof payload === 'string') {
+    const parsed = parseModelOutputToJSON(payload);
+    const text = String(parsed?.text || payload);
+    const actions = Array.isArray(parsed?.actions) ? parsed.actions : [];
+    return { text, actions };
+  }
+
+  if (typeof payload === 'object') {
+    const obj = payload as Record<string, unknown>;
+    const firstChoice = Array.isArray(obj.choices) ? (obj.choices[0] as Record<string, unknown>) : null;
+    const firstMessage = firstChoice?.message as Record<string, unknown> | undefined;
+
+    const textCandidate =
+      obj.text ??
+      obj.response ??
+      obj.reply ??
+      obj.answer ??
+      obj.output ??
+      obj.content ??
+      obj.message ??
+      firstMessage?.content ??
+      firstChoice?.text;
+
+    const text =
+      typeof textCandidate === 'string'
+        ? textCandidate
+        : textCandidate != null
+          ? String(textCandidate)
+          : '';
+
+    const actions = Array.isArray(obj.actions) ? obj.actions : [];
+    if (text || actions.length) return { text, actions };
+
+    if (obj.data) return normalizeResponsePayload(obj.data);
+
+    return { text: '', actions: [] };
+  }
+
+  return { text: String(payload), actions: [] };
+}
+
+function buildBackendCandidateUrls(): string[] {
+  const configuredUrl = (
+    process.env.JARVIS_BACKEND_URL ||
+    process.env.JARVIS_LLM_URL ||
+    DEFAULT_JARVIS_BACKEND_URL
+  ).trim();
+
+  const configuredPaths = process.env.JARVIS_BACKEND_PATHS
+    ? process.env.JARVIS_BACKEND_PATHS.split(',').map((p) => p.trim()).filter(Boolean)
+    : DEFAULT_BACKEND_PATHS;
+
+  const urls = new Set<string>();
+
+  // Respect fully specified endpoint URLs first.
+  if (configuredUrl) {
+    urls.add(configuredUrl);
+  }
+
+  let originBase = configuredUrl;
+  try {
+    const parsed = new URL(configuredUrl);
+    originBase = `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    // Keep configuredUrl as-is when it is not parseable as a URL.
+  }
+
+  for (const path of configuredPaths) {
+    try {
+      const candidate = /^https?:\/\//i.test(path)
+        ? path
+        : new URL(path.startsWith('/') ? path : `/${path}`, originBase).toString();
+      urls.add(candidate);
+    } catch {
+      // Skip malformed path entries.
+    }
+  }
+
+  return Array.from(urls);
+}
+
+async function callHttpBackend(prompt: string) {
+  const apiKey = process.env.JARVIS_API_KEY;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  const payload = {
+    prompt,
+    message: prompt,
+    query: prompt,
+    input: prompt,
+    text: prompt,
+    code: prompt,
+  };
+
+  let lastError: unknown = null;
+
+  for (const url of buildBackendCandidateUrls()) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        lastError = `HTTP ${res.status} from ${url}`;
+        continue;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      const raw = contentType.includes('application/json') ? await res.json() : await res.text();
+      const normalized = normalizeResponsePayload(raw);
+
+      if (normalized && (normalized.text || normalized.actions.length)) {
+        return normalized;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (lastError) {
+    console.error('Jarvis backend call failed:', lastError);
+  }
+
+  return null;
 }
 
 async function callGemini(prompt: string) {
@@ -57,34 +197,28 @@ export async function POST(req: Request) {
     const prompt = String(body?.prompt || '');
 
     // Choose provider
-    const provider = (process.env.JARVIS_PROVIDER || 'stub').toLowerCase();
+    const provider = (process.env.JARVIS_PROVIDER || 'http').toLowerCase();
 
-    let modelText: string | null = null;
+    // Prefer your backend proxy path first unless explicitly forced to stub.
+    const allowHttp = provider !== 'stub';
+    const allowGemini = provider === 'gemini' || provider === 'gemini-only' || provider === 'auto';
 
-    if (provider === 'gemini') {
+    let modelResult: { text: string; actions: unknown[] } | null = null;
+
+    if (allowHttp) {
+      modelResult = await callHttpBackend(prompt);
+    }
+
+    if (!modelResult && allowGemini) {
       try {
-        modelText = await callGemini(prompt);
+        const modelText = await callGemini(prompt);
+        modelResult = normalizeResponsePayload(modelText);
       } catch (err) {
-        // fall through to stub
         console.error('Gemini call failed:', err);
-      }
-    } else if (provider === 'http' && process.env.JARVIS_LLM_URL && process.env.JARVIS_API_KEY) {
-      // Generic HTTP proxy to any LLM endpoint (expects bearer token)
-      try {
-        const res = await fetch(process.env.JARVIS_LLM_URL!, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.JARVIS_API_KEY}` },
-          body: JSON.stringify({ prompt }),
-        });
-        const json = await res.json();
-        modelText = json?.text || json?.response || JSON.stringify(json);
-      } catch (e) {
-        console.error('Generic LLM call failed:', e);
       }
     }
 
-    // If we didn't get a model response, return the stub
-    if (!modelText) {
+    if (!modelResult) {
       const actions = [
         { type: 'message', text: `Received: ${prompt}` },
         { type: 'zoom', longitude: 8.6753, latitude: 9.0820, zoom: 6 },
@@ -92,11 +226,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ text: 'Jarvis stub executed', actions });
     }
 
-    // Try parse model output as JSON (the model is instructed to return JSON)
-    const parsed = await parseModelOutputToJSON(modelText);
-    // Validate minimal shape
-    const text = parsed?.text || modelText;
-    const actions = Array.isArray(parsed?.actions) ? parsed.actions : [];
+    const text = modelResult.text;
+    const actions = Array.isArray(modelResult.actions) ? modelResult.actions : [];
 
     return NextResponse.json({ text, actions });
   } catch (err) {

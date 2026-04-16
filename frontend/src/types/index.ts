@@ -61,9 +61,11 @@ export interface Flow {
   flow_type: string;
   product_type?: string;
   volume_bpd?: number;
+  avg_volume_value?: number;
   route_distance_km?: number;
   estimated_transit_days?: number;
   status: string;
+  is_active?: boolean;
   operational_frequency?: string;
   last_updated?: string;
   metadata?: Record<string, unknown>;

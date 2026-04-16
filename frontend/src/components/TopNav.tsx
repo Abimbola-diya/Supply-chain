@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Map, Network, GitBranch, MessageSquare, Search, X, ChevronRight } from 'lucide-react';
+import { Map as MapIcon, Network, GitBranch, MessageSquare, Search, X, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 import { ViewMode, NODE_TYPE_CONFIG } from '@/types';
 import { searchNodes } from '@/lib/supabase';
 import type { Node } from '@/types';
 
 const VIEWS: { id: ViewMode; label: string; icon: React.ReactNode; shortLabel: string }[] = [
-  { id: 'map',       label: 'End-to-End Map',  shortLabel: 'MAP',       icon: <Map size={12} /> },
+  { id: 'map',       label: 'End-to-End Map',  shortLabel: 'MAP',       icon: <MapIcon size={12} /> },
   { id: 'ecosystem', label: 'Ecosystem',        shortLabel: 'ECOSYSTEM', icon: <Network size={12} /> },
   { id: 'sankey',    label: 'Sankey Flow',      shortLabel: 'SANKEY',    icon: <GitBranch size={12} /> },
 ];

@@ -118,7 +118,7 @@ export default function MapViewRealistic({ nodes = [], flows = [] }: MapViewProp
           .attr('stroke', '#1a4460')
           .attr('stroke-width', 0.8)
           .style('cursor', 'pointer')
-          .on('mouseover', function (event: any, d: any) {
+          .on('mouseover', function (this: SVGPathElement, event: any, d: any) {
             d3.select(this)
               .attr('fill', '#164070')
               .attr('stroke-width', 1.2);
@@ -129,11 +129,11 @@ export default function MapViewRealistic({ nodes = [], flows = [] }: MapViewProp
             tooltip.style.left = (event.pageX + 10) + 'px';
             tooltip.style.top = (event.pageY - 28) + 'px';
           })
-          .on('mousemove', function (event: any) {
+          .on('mousemove', function (this: SVGPathElement, event: any) {
             tooltip.style.left = (event.pageX + 10) + 'px';
             tooltip.style.top = (event.pageY - 28) + 'px';
           })
-          .on('mouseout', function () {
+          .on('mouseout', function (this: SVGPathElement) {
             d3.select(this)
               .attr('fill', '#0a1828')
               .attr('stroke-width', 0.8);
@@ -306,16 +306,17 @@ export default function MapViewRealistic({ nodes = [], flows = [] }: MapViewProp
             .attr('stroke', '#fff')
             .attr('stroke-width', 0.5)
             .style('cursor', 'pointer')
-            .on('mouseover', function(event: any, d: any) {
+            .on('mouseover', function(this: SVGCircleElement, event: any, d: any) {
               d3.select(this)
                 .attr('r', 10)
                 .attr('opacity', 1);
             })
-            .on('mouseout', function() {
+            .on('mouseout', function(this: SVGCircleElement) {
               d3.select(this)
                 .attr('r', 6)
                 .attr('opacity', 0.9);
-            })            .on('click', function(event: any, d: any) {
+            })
+            .on('click', function(event: any, d: any) {
               event.stopPropagation();
               console.log('🔍 Node clicked:', d);
               
@@ -437,7 +438,7 @@ export default function MapViewRealistic({ nodes = [], flows = [] }: MapViewProp
             d3.zoomIdentity.translate(width / 2, height / 2)
           );
       };
-      containerRef.current.appendChild(resetBtn);
+        containerRef.current?.appendChild(resetBtn);
 
       // Info text
       const infoDiv = document.createElement('div');
@@ -451,7 +452,7 @@ export default function MapViewRealistic({ nodes = [], flows = [] }: MapViewProp
         font-family: monospace;
         z-index: 10;
       `;
-      containerRef.current.appendChild(infoDiv);
+      containerRef.current?.appendChild(infoDiv);
 
       // Cleanup resize
       const handleResize = () => {

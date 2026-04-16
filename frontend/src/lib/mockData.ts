@@ -21,6 +21,7 @@ const MAJOR_NIGERIAN_CITIES = [
 const NODE_TYPES = ['refinery', 'upstream_field', 'terminal', 'jetty', 'pipeline', 'retail_station', 'distribution_center'];
 const STATUSES = ['operational', 'maintenance', 'degraded'];
 const PRODUCT_TYPES = ['crude_oil', 'gasoline', 'diesel', 'kerosene', 'lpg'];
+const TRANSPORT_MODES = ['pipeline', 'truck', 'vessel'];
 
 function randomChoice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -103,6 +104,7 @@ export function generateMockFlows(nodes: Node[], count: number = 35): Flow[] {
       id: `flow-${i}`,
       source_node_id: source.id,
       destination_node_id: destination.id,
+      transport_mode: randomChoice(TRANSPORT_MODES),
       flow_type: 'pipeline',
       product_type: randomChoice(PRODUCT_TYPES),
       volume_bpd: Math.floor(randomBetween(5000, 100000)),

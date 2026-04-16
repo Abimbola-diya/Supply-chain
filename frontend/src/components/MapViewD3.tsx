@@ -1,6 +1,16 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useMemo, useCallback, useLayoutEffect } from 'react';
+import {
+  geoMercator,
+  geoPath,
+  select,
+  range,
+  scaleLinear,
+  extent,
+  max,
+  min,
+} from 'd3';
 import { useStore } from '@/stores';
 import { Node, Flow } from '@/types';
 
@@ -142,8 +152,7 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
     const center = [8.5, 9.3]; // Center of Nigeria
 
     // Create projection
-    const projection = d3
-      .geoMercator()
+    const projection = geoMercator()
       .center(center as [number, number])
       .fitSize([width, height], {
         type: 'FeatureCollection',
@@ -166,10 +175,10 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
         ],
       } as any);
 
-    const path = d3.geoPath().projection(projection);
+    const path = geoPath().projection(projection);
 
     // Select SVG
-    const svg = d3.select(svgRef.current);
+    const svg = select(svgRef.current);
     svg.attr('width', width).attr('height', height);
 
     // Clear previous content
@@ -184,7 +193,7 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
 
     // Add grid
     const gridGroup = svg.append('g').attr('class', 'grid').attr('opacity', 0.05);
-    for (let x of d3.range(bounds[0][0], bounds[1][0], 1)) {
+    for (let x of range(bounds[0][0], bounds[1][0], 1)) {
       gridGroup
         .append('line')
         .attr('x1', projection([x, bounds[0][1]])![0])
@@ -194,7 +203,7 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
         .attr('stroke', COLORS.textSecondary)
         .attr('stroke-width', 0.5);
     }
-    for (let y of d3.range(bounds[0][1], bounds[1][1], 1)) {
+    for (let y of range(bounds[0][1], bounds[1][1], 1)) {
       gridGroup
         .append('line')
         .attr('x1', projection([bounds[0][0], y])![0])
@@ -219,22 +228,22 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
 
     // Add flow lines
     const flowGroup = svg.append('g').attr('class', 'flows');
-    flowGroup
+    (flowGroup
       .selectAll('line')
       .data(flowData)
-      .join('line')
-      .attr('x1', (d) => projection([d.source.longitude, d.source.latitude])![0])
-      .attr('y1', (d) => projection([d.source.longitude, d.source.latitude])![1])
-      .attr('x2', (d) => projection([d.target.longitude, d.target.latitude])![0])
-      .attr('y2', (d) => projection([d.target.longitude, d.target.latitude])![1])
-      .attr('stroke', (d) => {
+      .join('line') as any)
+      .attr('x1', (d: any) => projection([d.source.longitude, d.source.latitude])![0])
+      .attr('y1', (d: any) => projection([d.source.longitude, d.source.latitude])![1])
+      .attr('x2', (d: any) => projection([d.target.longitude, d.target.latitude])![0])
+      .attr('y2', (d: any) => projection([d.target.longitude, d.target.latitude])![1])
+      .attr('stroke', (d: any) => {
         const color = NODE_TYPE_COLORS[d.source.node_type.toLowerCase()] || COLORS.textSecondary;
         return color;
       })
-      .attr('stroke-width', (d) => Math.max(1, Math.log(d.volume / 10000 + 1) * 1.5))
+      .attr('stroke-width', (d: any) => Math.max(1, Math.log(d.volume / 10000 + 1) * 1.5))
       .attr('opacity', 0.3)
       .attr('stroke-linecap', 'round')
-      .attr('class', (d) => `flow-line flow-${d.id}`);
+      .attr('class', (d: any) => `flow-line flow-${d.id}`);
 
     // Add flow direction arrows (animated dashes)
     const defs = svg.append('defs');
@@ -256,37 +265,37 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
       .attr('class', 'nodes')
       .selectAll('g')
       .data(visibleNodes)
-      .join((enter) =>
+      .join((enter: any) =>
         enter
           .append('g')
-          .attr('class', (d) => `node node-${d.id}`)
+          .attr('class', (d: Node) => `node node-${d.id}`)
           .attr(
             'transform',
-            (d) => `translate(${projection([d.longitude, d.latitude])![0]},${projection([d.longitude, d.latitude])![1]})`
+            (d: Node) => `translate(${projection([d.longitude, d.latitude])![0]},${projection([d.longitude, d.latitude])![1]})`
           )
-          .call((g) => {
+          .call((g: any) => {
             // Background ring (pulse effect when not selected)
             g.append('circle')
               .attr('class', 'node-ring')
-              .attr('r', (d) => getNodeRadius(d) * 3)
+              .attr('r', (d: Node) => getNodeRadius(d) * 3)
               .attr('fill', 'none')
-              .attr('stroke', (d) => getNodeColor(d))
+              .attr('stroke', (d: Node) => getNodeColor(d))
               .attr('stroke-width', 1)
               .attr('opacity', 0.1);
 
             // Main node circle
             g.append('circle')
               .attr('class', 'node-core')
-              .attr('r', (d) => getNodeRadius(d))
-              .attr('fill', (d) => getNodeColor(d))
+              .attr('r', (d: Node) => getNodeRadius(d))
+              .attr('fill', (d: Node) => getNodeColor(d))
               .attr('opacity', 0.85);
 
             // Glow shadow
             g.append('circle')
               .attr('class', 'node-glow')
-              .attr('r', (d) => getNodeRadius(d))
+              .attr('r', (d: Node) => getNodeRadius(d))
               .attr('fill', 'none')
-              .attr('stroke', (d) => getNodeColor(d))
+              .attr('stroke', (d: Node) => getNodeColor(d))
               .attr('stroke-width', 2)
               .attr('opacity', 0.0)
               .attr('filter', `drop-shadow(0 0 8px ${COLORS.accent})`);
@@ -296,23 +305,23 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
               g.append('text')
                 .attr('class', 'node-label')
                 .attr('x', 0)
-                .attr('y', (d) => getNodeRadius(d) + 14)
+                .attr('y', (d: Node) => getNodeRadius(d) + 14)
                 .attr('text-anchor', 'middle')
                 .attr('font-family', "'JetBrains Mono', monospace")
                 .attr('font-size', 8)
                 .attr('font-weight', 500)
                 .attr('fill', COLORS.textSecondary)
                 .attr('pointer-events', 'none')
-                .text((d) => d.name.substring(0, 12));
+                .text((d: Node) => d.name.substring(0, 12));
             }
 
             // Status indicator
             g.append('circle')
               .attr('class', 'status-dot')
-              .attr('cx', (d) => getNodeRadius(d) + 3)
+              .attr('cx', (d: Node) => getNodeRadius(d) + 3)
               .attr('cy', 0)
               .attr('r', 3)
-              .attr('fill', (d) => {
+              .attr('fill', (d: Node) => {
                 if (d.status === 'operational') return COLORS.success;
                 if (d.status === 'maintenance') return COLORS.warning;
                 if (d.status === 'shutdown') return COLORS.danger;
@@ -322,14 +331,14 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
       );
 
     // Add hover and click interactions
-    nodeGroup.on('mouseenter', function (event, d: Node) {
-      d3.select(this)
+    nodeGroup.on('mouseenter', function (this: SVGGElement, event: MouseEvent, d: Node) {
+      select(this)
         .select('.node-core')
         .transition()
         .duration(200)
         .attr('r', getNodeRadius(d) * 1.4);
 
-      d3.select(this)
+      select(this)
         .select('.node-glow')
         .attr('opacity', 0.5)
         .transition()
@@ -344,20 +353,20 @@ export default function MapViewD3({ nodes, flows }: MapViewProps) {
       set_hovered_node(d.id);
     });
 
-    nodeGroup.on('mouseleave', function (event, d: Node) {
-      d3.select(this)
+    nodeGroup.on('mouseleave', function (this: SVGGElement, event: MouseEvent, d: Node) {
+      select(this)
         .select('.node-core')
         .transition()
         .duration(200)
         .attr('r', getNodeRadius(d));
 
-      d3.select(this).select('.node-glow').attr('opacity', 0);
+      select(this).select('.node-glow').attr('opacity', 0);
 
       setTooltip(null);
       set_hovered_node(null);
     });
 
-    nodeGroup.on('click', (event, d: Node) => {
+    nodeGroup.on('click', (event: MouseEvent, d: Node) => {
       event.stopPropagation();
       set_selected_node(d.id);
     });
